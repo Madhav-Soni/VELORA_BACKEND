@@ -1,10 +1,42 @@
 import mongoose from 'mongoose';
 
-
 const userSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    name: {
+        type: String,
+        required: true
+    },
+
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+
+    // Required only for normal email/password accounts.
+    // Google users won't have a password.
+    password: {
+        type: String,
+        required: false
+    },
+
+    // Google account's unique identifier
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+
+    // How the user authenticated
+    authProvider: {
+        type: String,
+        enum: ['local', 'google'],
+        default: 'local'
+    },
+
+    profilePicture: {
+        type: String,
+        default: null
+    },
 
     favoriteActors: [
         {
@@ -38,7 +70,10 @@ const userSchema = new mongoose.Schema({
         },
     ],
 
-    selectedMood: { type: String, default: null }
+    selectedMood: {
+        type: String,
+        default: null
+    }
 });
 
 const User = mongoose.model('User', userSchema);

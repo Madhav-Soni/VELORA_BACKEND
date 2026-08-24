@@ -9,8 +9,10 @@ import { loginValidation, signupValidation, handleValidationErrors } from "./mid
 //auth
 import { signupController } from "./auth/signup.js";
 import { loginController } from "./auth/login.js";
+import { googleLoginController } from "./googleController.js";
 router.post("/signup", authLimiter, signupValidation, handleValidationErrors, signupController);
 router.post("/login", authLimiter, loginValidation, handleValidationErrors, loginController);
+router.post("/google", googleLoginController);
 
 //recommendationRoutes
 import { recommendationController } from "./recommendation/recommendationController.js";
