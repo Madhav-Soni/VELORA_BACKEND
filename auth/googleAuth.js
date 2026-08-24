@@ -14,7 +14,6 @@ export const googleLoginController = async (req, res) => {
             });
         }
 
-        // Verify Google's ID token
         const ticket = await client.verifyIdToken({
             idToken: credential,
             audience: process.env.GOOGLE_CLIENT_ID
@@ -38,31 +37,32 @@ export const googleLoginController = async (req, res) => {
 
         const normalizedEmail = email.toLowerCase();
 
-        // First check whether this Google account already exists
         let user = await User.findOne({ googleId });
 
-        // Google account doesn't exist yet
         if (!user) {
+            const existingLocalUser = await User.findOne({ email: normalizedEmail });
 
-            // Check whether this email already belongs
-            // to an existing VELORA account
-            user = await User.findOne({
-                email: normalizedEmail
-            });
+            if (existingLocalUser) {
+                if (existingLocalUser.password) {
+                    // Account exists and has a password set — do NOT auto-link.
+                    // Force the user to prove ownership via password login first,
+                    // then link Google from an authenticated "connect account" flow.
+                    return res.status(409).json({
+                        message:
+                            "An account with this email already exists. Please log in with your password and connect Google from your account settings."
+                    });
+                }
 
-            if (user) {
+                // Existing account has no password (e.g. was created via some other
+                // passwordless flow) — safe to link.
+                existingLocalUser.googleId = googleId;
+                existingLocalUser.authProvider = "google";
+                existingLocalUser.profilePicture = picture || existingLocalUser.profilePicture;
 
-                // Existing local account
-                // Link Google account to it
-                user.googleId = googleId;
-                user.authProvider = "google";
-                user.profilePicture = picture || user.profilePicture;
-
-                await user.save();
+                await existingLocalUser.save();
+                user = existingLocalUser;
 
             } else {
-
-                // Completely new user
                 user = await User.create({
                     name: name || "Google User",
                     email: normalizedEmail,
@@ -73,7 +73,6 @@ export const googleLoginController = async (req, res) => {
             }
         }
 
-        // Generate YOUR application's JWT
         const token = jwt.sign(
             { _id: user._id },
             process.env.JWT_SECRET,
