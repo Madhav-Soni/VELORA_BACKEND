@@ -18,14 +18,31 @@ export const loginController = async (req, res) => {
         }
 
         const normalizedEmail = email.toLowerCase();
-        const checkExistingUser = await User.findOne({ email: normalizedEmail });
+        const checkExistingUser = await User.findOne({
+            email: normalizedEmail
+        });
+
         if (!checkExistingUser) {
-            return res.status(400).json({ message: "Login Details don't match" });
+            return res.status(400).json({
+                message: "Login Details don't match"
+            });
         }
 
-        const comparePassword = await bcrypt.compare(password, checkExistingUser.password);
+        if (!checkExistingUser.password) {
+            return res.status(400).json({
+                message: "This account uses Google Sign-In"
+            });
+        }
+
+        const comparePassword = await bcrypt.compare(
+            password,
+            checkExistingUser.password
+        );
+
         if (!comparePassword) {
-            return res.status(400).json({ message: "Password don't match" });
+            return res.status(400).json({
+                message: "Password don't match"
+            });
         }
 
         const token = jwt.sign({ _id: checkExistingUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
