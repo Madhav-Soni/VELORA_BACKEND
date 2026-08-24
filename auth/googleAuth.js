@@ -6,7 +6,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const googleLoginController = async (req, res) => {
     try {
-        const { credential } = req.body;
+        const credential = req.body.credential || req.body.token;
 
         if (!credential) {
             return res.status(400).json({

@@ -4,10 +4,12 @@ dotenv.config();
 import rateLimit from "express-rate-limit";
 import RateLimitMongo from "rate-limit-mongo";
 
+const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+
 export const authLimiter = rateLimit({
-  store: process.env.MONGODB_URI
+  store: mongoUri
     ? new RateLimitMongo({
-        uri: process.env.MONGODB_URI,
+        uri: mongoUri,
         collectionName: "rateLimits",
         expireTimeMs: 15 * 60 * 1000,
       })

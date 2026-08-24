@@ -13,12 +13,13 @@ import Movie from "./Schema/movieSchema.js";   // ← model, not User
 dotenv.config();
 
 // ── 1. Connect ────────────────────────────────────────────────────────────────
-await mongoose.connect(process.env.MONGODB_URI);
+const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+await mongoose.connect(mongoUri);
 console.log("MongoDB connected");
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const TMDB_BASE    = "https://api.themoviedb.org/3";
-const PAGES        = 5;   // 5 pages × 20 results × 3 endpoints = up to 300 movies
+const TMDB_BASE = "https://api.themoviedb.org/3";
+const PAGES = 5;   // 5 pages × 20 results × 3 endpoints = up to 300 movies
 
 // ── 2. Fetch helpers ──────────────────────────────────────────────────────────
 
@@ -62,9 +63,9 @@ const [popular, topRated, nowPlaying] = await Promise.all([
 ]);
 
 // ── 4. Deduplicate by TMDB id ─────────────────────────────────────────────────
-const seen    = new Set();
-const allRaw  = [...popular, ...topRated, ...nowPlaying];
-const unique  = allRaw.filter(m => {
+const seen = new Set();
+const allRaw = [...popular, ...topRated, ...nowPlaying];
+const unique = allRaw.filter(m => {
     if (seen.has(m.id)) return false;
     seen.add(m.id);
     return true;
@@ -78,34 +79,34 @@ console.log(`\n${unique.length} unique movies after deduplication`);
 // so we store both the numeric ids AND the resolved names.
 //
 const GENRE_MAP = {
-    28:    "Action",
-    12:    "Adventure",
-    16:    "Animation",
-    35:    "Comedy",
-    80:    "Crime",
-    99:    "Documentary",
-    18:    "Drama",
+    28: "Action",
+    12: "Adventure",
+    16: "Animation",
+    35: "Comedy",
+    80: "Crime",
+    99: "Documentary",
+    18: "Drama",
     10751: "Family",
-    14:    "Fantasy",
-    36:    "History",
-    27:    "Horror",
+    14: "Fantasy",
+    36: "History",
+    27: "Horror",
     10402: "Music",
-    9648:  "Mystery",
+    9648: "Mystery",
     10749: "Romance",
-    878:   "Sci-Fi",
+    878: "Sci-Fi",
     10770: "TV Movie",
-    53:    "Thriller",
+    53: "Thriller",
     10752: "War",
-    37:    "Western",
+    37: "Western",
 };
 
 const docs = unique.map(m => ({
-    tmdbId:     String(m.id),
-    title:      m.title ?? m.original_title ?? "Untitled",
-    genres:     (m.genre_ids ?? []).map(id => GENRE_MAP[id]).filter(Boolean),
-    actors:     [],        // TMDB list endpoints don't include cast; populated on demand
-    rating:     m.vote_average  ?? 0,
-    popularity: m.popularity    ?? 0,
+    tmdbId: String(m.id),
+    title: m.title ?? m.original_title ?? "Untitled",
+    genres: (m.genre_ids ?? []).map(id => GENRE_MAP[id]).filter(Boolean),
+    actors: [],        // TMDB list endpoints don't include cast; populated on demand
+    rating: m.vote_average ?? 0,
+    popularity: m.popularity ?? 0,
 }));
 
 // ── 6. Upsert into MongoDB ────────────────────────────────────────────────────
