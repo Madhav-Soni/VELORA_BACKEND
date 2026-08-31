@@ -14,7 +14,7 @@ export const recommendationController = async (req, res) => {
             });
         }
 
-        // Gather all interacted movie IDs to exclude from final recommendations
+        // Interacted movies set to exclude from final recommendations
         const interactedMovieIds = new Set();
         (user.favorites || []).forEach(id => interactedMovieIds.add(Number(id)));
         (user.watchlist || []).forEach(id => interactedMovieIds.add(Number(id)));
@@ -23,170 +23,82 @@ export const recommendationController = async (req, res) => {
             if (id) interactedMovieIds.add(Number(id));
         });
 
-        // Signal collection with weights
-        const signalMap = new Map(); // movieId -> { weight, timestamp }
+        const movieMap = new Map();
 
-        // user.favorites -> weight 3
-        (user.favorites || []).forEach(id => {
-            const numId = Number(id);
-            if (numId) signalMap.set(numId, { weight: 3, timestamp: 0 });
-        });
+        // 1. Primary path: Up to 10 most recent favorites
+        const recentFavorites = (user.favorites || []).slice(-10).reverse();
 
-        // user.watchlist -> weight 2
-        (user.watchlist || []).forEach(id => {
-            const numId = Number(id);
-            if (numId) {
-                const existing = signalMap.get(numId);
-                if (!existing) {
-                    signalMap.set(numId, { weight: 2, timestamp: 0 });
-                } else {
-                    signalMap.set(numId, { weight: Math.max(existing.weight, 2), timestamp: existing.timestamp });
-                }
-            }
-        });
-
-        // user.watchHistory -> weight 1
-        (user.watchHistory || []).forEach(item => {
-            const numId = typeof item === "number" ? Number(item) : Number(item?.movieId);
-            const ts = item?.watchedAt ? new Date(item.watchedAt).getTime() : 0;
-            if (numId) {
-                const existing = signalMap.get(numId);
-                if (!existing) {
-                    signalMap.set(numId, { weight: 1, timestamp: ts });
-                } else {
-                    signalMap.set(numId, { weight: Math.max(existing.weight, 1), timestamp: Math.max(existing.timestamp, ts) });
-                }
-            }
-        });
-
-        // Cap at 30 unique signal movie IDs (favoring most recent watchedAt)
-        const signalList = Array.from(signalMap.entries()).map(([movieId, info]) => ({
-            movieId,
-            weight: info.weight,
-            timestamp: info.timestamp
-        }));
-
-        signalList.sort((a, b) => (b.timestamp - a.timestamp) || (b.weight - a.weight));
-        const topSignals = signalList.slice(0, 30);
-
-        // Fetch genres & actors for signal movies via TMDB client
-        const movieCache = new Map();
-        if (topSignals.length > 0) {
-            const tmdbFetches = topSignals.map(signal =>
-                tmdbClient.get(`/movie/${signal.movieId}`, {
-                    params: { append_to_response: "credits" }
-                }).then(res => ({ id: signal.movieId, data: res.data })).catch(err => {
-                    console.error(`Error fetching movie ${signal.movieId} from TMDB:`, err.message);
-                    return null;
+        if (recentFavorites.length > 0) {
+            const fetchPromises = recentFavorites.map(favId =>
+                tmdbClient.get(`/movie/${favId}/recommendations`).then(res => res.data.results || []).catch(err => {
+                    console.error(`Error fetching recommendations for favorite ${favId}:`, err.message);
+                    return [];
                 })
             );
 
-            const fetchedResults = await Promise.all(tmdbFetches);
+            const resultsArrays = await Promise.all(fetchPromises);
+            const allRecommendedMovies = resultsArrays.flat();
 
-            for (const item of fetchedResults) {
-                if (!item || !item.data) continue;
-                const data = item.data;
-                const genreNames = (data.genres || []).map(g => g.name);
-                const actorIds = (data.credits?.cast || []).slice(0, 5).map(c => c.id);
+            allRecommendedMovies.forEach(movie => {
+                if (movie && movie.id && !movieMap.has(movie.id) && !interactedMovieIds.has(movie.id)) {
+                    movieMap.set(movie.id, movie);
+                }
+            });
+        }
 
-                movieCache.set(item.id, {
-                    genres: genreNames,
-                    actors: actorIds
+        // 2. Fallback / Top-up path if movieMap has fewer than 20 items
+        if (movieMap.size < 20) {
+            const genreIds = (user.favoriteGenres || [])
+                .map(genre => genreMap[genre])
+                .filter(Boolean);
+
+            const actorIds = (user.favoriteActors || [])
+                .map(actor => (typeof actor === "number" ? actor : actor?.id))
+                .filter(Boolean);
+
+            if (genreIds.length > 0 || actorIds.length > 0) {
+                const fallbackPromises = [];
+
+                if (genreIds.length > 0) {
+                    fallbackPromises.push(
+                        tmdbClient.get("/discover/movie", {
+                            params: {
+                                with_genres: genreIds.join("|"),
+                                sort_by: "popularity.desc"
+                            }
+                        }).then(res => res.data.results || []).catch(() => [])
+                    );
+                }
+
+                if (actorIds.length > 0) {
+                    fallbackPromises.push(
+                        tmdbClient.get("/discover/movie", {
+                            params: {
+                                with_people: actorIds.join("|"),
+                                sort_by: "popularity.desc"
+                            }
+                        }).then(res => res.data.results || []).catch(() => [])
+                    );
+                }
+
+                const fallbackArrays = await Promise.all(fallbackPromises);
+                const fallbackMovies = fallbackArrays.flat();
+
+                fallbackMovies.forEach(movie => {
+                    if (movie && movie.id && !movieMap.has(movie.id) && !interactedMovieIds.has(movie.id)) {
+                        movieMap.set(movie.id, movie);
+                    }
                 });
             }
         }
 
-        // Build weighted score maps
-        const genreScores = new Map();
-        const actorScores = new Map();
-
-        for (const signal of topSignals) {
-            const info = movieCache.get(signal.movieId);
-            if (!info) continue;
-
-            (info.genres || []).forEach(g => {
-                genreScores.set(g, (genreScores.get(g) || 0) + signal.weight);
-            });
-
-            (info.actors || []).forEach(actorId => {
-                actorScores.set(actorId, (actorScores.get(actorId) || 0) + signal.weight);
-            });
-        }
-
-        // Fold in onboarding static signals at weight 1 each
-        (user.favoriteGenres || []).forEach(g => {
-            if (g) genreScores.set(g, (genreScores.get(g) || 0) + 1);
-        });
-
-        (user.favoriteActors || []).forEach(actorObj => {
-            const actorId = typeof actorObj === "number" ? actorObj : actorObj?.id;
-            if (actorId) actorScores.set(actorId, (actorScores.get(actorId) || 0) + 1);
-        });
-
-        // Preserve cold-start behavior
-        if (genreScores.size === 0 && actorScores.size === 0) {
+        // Cold-start check: If no recommendations collected at all, return empty array
+        if (movieMap.size === 0) {
             return res.status(200).json([]);
         }
 
-        // Select top 4 genres and top 4 actors by score
-        const topGenres = Array.from(genreScores.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 4)
-            .map(e => e[0]);
-
-        const topActors = Array.from(actorScores.entries())
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 4)
-            .map(e => e[0]);
-
-        const genreIds = topGenres.map(g => genreMap[g]).filter(Boolean);
-        const actorIds = topActors.filter(Boolean);
-
-        if (genreIds.length === 0 && actorIds.length === 0) {
-            return res.status(200).json([]);
-        }
-
-        // Query TMDB discover using shared tmdbClient
-        const fetchPromises = [];
-
-        if (genreIds.length > 0) {
-            fetchPromises.push(
-                tmdbClient.get("/discover/movie", {
-                    params: {
-                        with_genres: genreIds.join("|"),
-                        sort_by: "popularity.desc"
-                    }
-                })
-            );
-        }
-
-        if (actorIds.length > 0) {
-            fetchPromises.push(
-                tmdbClient.get("/discover/movie", {
-                    params: {
-                        with_people: actorIds.join("|"),
-                        sort_by: "popularity.desc"
-                    }
-                })
-            );
-        }
-
-        const responses = await Promise.all(fetchPromises);
-
-        // Merge, deduplicate, and exclude already interacted movies
-        const allMovies = responses.flatMap(r => r.data.results);
-        const movieMap = new Map();
-
-        allMovies.forEach(movie => {
-            if (movie && movie.id && !movieMap.has(movie.id) && !interactedMovieIds.has(movie.id)) {
-                movieMap.set(movie.id, movie);
-            }
-        });
-
-        const uniqueMovies = Array.from(movieMap.values());
-
-        // Sort by popularity and take top 20
-        const sortedMovies = uniqueMovies
+        // Sort pool by popularity descending and slice top 20
+        const sortedMovies = Array.from(movieMap.values())
             .sort((a, b) => b.popularity - a.popularity)
             .slice(0, 20);
 
