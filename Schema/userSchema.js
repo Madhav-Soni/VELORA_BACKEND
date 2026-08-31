@@ -56,6 +56,11 @@ const userSchema = new mongoose.Schema({
         default: []
     },
 
+    favorites: {
+        type: [Number],
+        default: []
+    },
+
     watchHistory: [
         {
             movieId: Number,

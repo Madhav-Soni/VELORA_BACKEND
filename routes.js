@@ -23,6 +23,11 @@ import { watchlistController,watchlistControllerSync } from "./watchlist/watchli
 router.get("/watchlist/:userId", verifyToken, watchlistController);
 router.post("/watchlist-sync/:userId", verifyToken, watchlistControllerSync);
 
+//favoritesRoutes
+import { favoritesController, favoritesControllerSync } from "./favorites/favoritesController.js";
+router.get("/favorites/:userId", verifyToken, favoritesController);
+router.post("/favorites-sync/:userId", verifyToken, favoritesControllerSync);
+
 // historyRoutes
 import { getWatchHistory, historyController } from "./history/historyController.js";
 router.get("/watch-history/:userId", verifyToken, getWatchHistory);
