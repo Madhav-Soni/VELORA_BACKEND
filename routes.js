@@ -3,6 +3,7 @@ const router = express.Router();
 
 //middleware
 import { verifyToken } from "./middleware/verifyToken.js";
+import { requireOwnership } from "./middleware/requireOwnership.js";
 import { authLimiter } from "./middleware/limiter.js";
 import { loginValidation, signupValidation, handleValidationErrors } from "./middleware/validation.js";
 
@@ -16,27 +17,26 @@ router.post("/google", googleLoginController);
 
 //recommendationRoutes
 import { recommendationController } from "./recommendation/recommendationController.js";
-router.get("/recommendations/:userId", verifyToken, recommendationController);
+router.get("/recommendations/:userId", verifyToken, requireOwnership, recommendationController);
 
 //watchlistRoutes
-import { watchlistController,watchlistControllerSync } from "./watchlist/watchlistController.js";
-router.get("/watchlist/:userId", verifyToken, watchlistController);
-router.post("/watchlist-sync/:userId", verifyToken, watchlistControllerSync);
+import { watchlistController, watchlistControllerSync } from "./watchlist/watchlistController.js";
+router.get("/watchlist/:userId", verifyToken, requireOwnership, watchlistController);
+router.post("/watchlist-sync/:userId", verifyToken, requireOwnership, watchlistControllerSync);
 
 //favoritesRoutes
 import { favoritesController, favoritesControllerSync } from "./favorites/favoritesController.js";
-router.get("/favorites/:userId", verifyToken, favoritesController);
-router.post("/favorites-sync/:userId", verifyToken, favoritesControllerSync);
+router.get("/favorites/:userId", verifyToken, requireOwnership, favoritesController);
+router.post("/favorites-sync/:userId", verifyToken, requireOwnership, favoritesControllerSync);
 
 // historyRoutes
 import { getWatchHistory, historyController } from "./history/historyController.js";
-router.get("/watch-history/:userId", verifyToken, getWatchHistory);
-router.post("/watched/:userId", verifyToken, historyController);
-
+router.get("/watch-history/:userId", verifyToken, requireOwnership, getWatchHistory);
+router.post("/watched/:userId", verifyToken, requireOwnership, historyController);
 
 //preferenceRoutes
 import { getPreferenceController, preferenceController } from "./preferences/preferenceController.js";
-router.get("/preferences/:userId", verifyToken, getPreferenceController);
-router.put("/preferences/:userId", verifyToken, preferenceController);
+router.get("/preferences/:userId", verifyToken, requireOwnership, getPreferenceController);
+router.put("/preferences/:userId", verifyToken, requireOwnership, preferenceController);
 
 export default router;

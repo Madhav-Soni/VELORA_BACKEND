@@ -1,34 +1,21 @@
 import express from "express";
 const router = express.Router();
-import dotenv from "dotenv";
-dotenv.config();
-
-const TMDB_BASE_URL = "https://api.themoviedb.org/3";
-
-import { verifyToken }
-from "./middleware/verifyToken.js";
+import tmdbClient from "./utils/tmdbClient.js";
+import { verifyToken } from "./middleware/verifyToken.js";
 
 router.use(verifyToken);
 
 router.use(async (req, res) => {
     try {
-        const path = req.path;
-
-        const queryParams = new URLSearchParams(req.query);
-        queryParams.append("api_key", process.env.TMDB_API_KEY);
-
-        const tmdbUrl = `${TMDB_BASE_URL}${path}?${queryParams.toString()}`;
-
-        const response = await fetch(tmdbUrl);
-        if (!response.ok) {
-            return res.status(response.status).json({ message: `TMDB Error: ${response.statusText}` });
-        }
-
-        const data = await response.json();
-        res.status(200).json(data);
+        const response = await tmdbClient.get(req.path, {
+            params: req.query
+        });
+        res.status(200).json(response.data);
     } catch (error) {
-        console.error("TMDB Proxy Error:", error);
-        res.status(500).json({ message: "Internal server error connecting to TMDB" });
+        console.error("TMDB Proxy Error:", error.message);
+        const status = error.response?.status || 500;
+        const message = error.response?.data?.status_message || "Internal server error connecting to TMDB";
+        res.status(status).json({ message });
     }
 });
 

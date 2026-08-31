@@ -1,33 +1,14 @@
-import mongoose from "mongoose";
 import User from "../Schema/userSchema.js";
 
 export const watchlistController = async (req, res) => {
     try {
-
         const { userId } = req.params;
-
-        if (
-            !mongoose.Types.ObjectId.isValid(userId)
-        ) {
-            return res.status(400).json({
-                message: "Invalid user ID"
-            });
-        }
 
         const user = await User.findById(userId);
 
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
-            });
-        }
-
-        if (
-            req.user._id.toString() !==
-            user._id.toString()
-        ) {
-            return res.status(403).json({
-                message: "Unauthorized access"
             });
         }
 
@@ -36,9 +17,7 @@ export const watchlistController = async (req, res) => {
         );
 
     } catch (error) {
-
         console.log(error);
-
         res.status(500).json({
             message: "Internal server error"
         });
@@ -47,22 +26,12 @@ export const watchlistController = async (req, res) => {
 
 export const watchlistControllerSync = async (req, res) => {
     try {
-
         const { userId } = req.params;
-
-        if (
-            !mongoose.Types.ObjectId.isValid(userId)
-        ) {
-            return res.status(400).json({
-                message: "Invalid user ID"
-            });
-        }
-
         const { movieIds } = req.body;
 
-        if (!Array.isArray(movieIds)) {
+        if (!Array.isArray(movieIds) || !movieIds.every(id => typeof id === "number" && !isNaN(id))) {
             return res.status(400).json({
-                message: "movieIds must be an array"
+                message: "movieIds must be an array of numbers"
             });
         }
 
@@ -71,15 +40,6 @@ export const watchlistControllerSync = async (req, res) => {
         if (!user) {
             return res.status(404).json({
                 message: "User not found"
-            });
-        }
-
-        if (
-            req.user._id.toString() !==
-            user._id.toString()
-        ) {
-            return res.status(403).json({
-                message: "Unauthorized access"
             });
         }
 
@@ -93,9 +53,7 @@ export const watchlistControllerSync = async (req, res) => {
         });
 
     } catch (error) {
-
         console.log(error);
-
         res.status(500).json({
             message: "Internal server error"
         });

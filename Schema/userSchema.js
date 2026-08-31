@@ -68,13 +68,6 @@ const userSchema = new mongoose.Schema({
         },
     ],
 
-    ratings: [
-        {
-            movieId: Number,
-            rating: Number,
-        },
-    ],
-
     selectedMood: {
         type: String,
         default: null
