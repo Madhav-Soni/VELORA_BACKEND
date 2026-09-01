@@ -26,7 +26,7 @@ export const recommendationController = async (req, res) => {
         const movieMap = new Map();
 
         // 1. Primary path: Up to 10 most recent favorites
-        const recentFavorites = (user.favorites || []).slice(0, 10);
+        const recentFavorites = (user.favorites || []).slice(-10);
 
         if (recentFavorites.length > 0) {
             const fetchPromises = recentFavorites.map(favId =>
