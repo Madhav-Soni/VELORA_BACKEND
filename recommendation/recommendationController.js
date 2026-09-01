@@ -26,7 +26,7 @@ export const recommendationController = async (req, res) => {
         const movieMap = new Map();
 
         // 1. Primary path: Up to 10 most recent favorites
-        const recentFavorites = (user.favorites || []).slice(-10).reverse();
+        const recentFavorites = (user.favorites || []).slice(0, 10);
 
         if (recentFavorites.length > 0) {
             const fetchPromises = recentFavorites.map(favId =>
@@ -37,12 +37,21 @@ export const recommendationController = async (req, res) => {
             );
 
             const resultsArrays = await Promise.all(fetchPromises);
-            const allRecommendedMovies = resultsArrays.flat();
 
-            allRecommendedMovies.forEach(movie => {
-                if (movie && movie.id && !movieMap.has(movie.id) && !interactedMovieIds.has(movie.id)) {
-                    movieMap.set(movie.id, movie);
-                }
+            resultsArrays.forEach(resultsArray => {
+                resultsArray.forEach((movie, index) => {
+                    if (movie && movie.id && !interactedMovieIds.has(movie.id)) {
+                        const positionScore = 1 / (index + 1);
+                        const pop = movie.popularity || 1;
+                        const score = positionScore * pop;
+
+                        if (movieMap.has(movie.id)) {
+                            movieMap.get(movie.id).score += score;
+                        } else {
+                            movieMap.set(movie.id, { movie, score });
+                        }
+                    }
+                });
             });
         }
 
@@ -82,12 +91,21 @@ export const recommendationController = async (req, res) => {
                 }
 
                 const fallbackArrays = await Promise.all(fallbackPromises);
-                const fallbackMovies = fallbackArrays.flat();
 
-                fallbackMovies.forEach(movie => {
-                    if (movie && movie.id && !movieMap.has(movie.id) && !interactedMovieIds.has(movie.id)) {
-                        movieMap.set(movie.id, movie);
-                    }
+                fallbackArrays.forEach(fallbackArray => {
+                    fallbackArray.forEach((movie, index) => {
+                        if (movie && movie.id && !interactedMovieIds.has(movie.id)) {
+                            const positionScore = 1 / (index + 1);
+                            const pop = movie.popularity || 1;
+                            const score = positionScore * pop;
+
+                            if (movieMap.has(movie.id)) {
+                                movieMap.get(movie.id).score += score;
+                            } else {
+                                movieMap.set(movie.id, { movie, score });
+                            }
+                        }
+                    });
                 });
             }
         }
@@ -97,9 +115,10 @@ export const recommendationController = async (req, res) => {
             return res.status(200).json([]);
         }
 
-        // Sort pool by popularity descending and slice top 20
+        // Sort pool by relevance score descending and slice top 20
         const sortedMovies = Array.from(movieMap.values())
-            .sort((a, b) => b.popularity - a.popularity)
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.movie)
             .slice(0, 20);
 
         return res.status(200).json(sortedMovies);

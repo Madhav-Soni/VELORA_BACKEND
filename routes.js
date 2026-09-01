@@ -20,14 +20,18 @@ import { recommendationController } from "./recommendation/recommendationControl
 router.get("/recommendations/:userId", verifyToken, requireOwnership, recommendationController);
 
 //watchlistRoutes
-import { watchlistController, watchlistControllerSync } from "./watchlist/watchlistController.js";
+import { watchlistController, watchlistControllerSync, addToWatchlistController, removeFromWatchlistController } from "./watchlist/watchlistController.js";
 router.get("/watchlist/:userId", verifyToken, requireOwnership, watchlistController);
 router.post("/watchlist-sync/:userId", verifyToken, requireOwnership, watchlistControllerSync);
+router.post("/watchlist/add/:userId", verifyToken, requireOwnership, addToWatchlistController);
+router.post("/watchlist/remove/:userId", verifyToken, requireOwnership, removeFromWatchlistController);
 
 //favoritesRoutes
-import { favoritesController, favoritesControllerSync } from "./favorites/favoritesController.js";
+import { favoritesController, favoritesControllerSync, addToFavoritesController, removeFromFavoritesController } from "./favorites/favoritesController.js";
 router.get("/favorites/:userId", verifyToken, requireOwnership, favoritesController);
 router.post("/favorites-sync/:userId", verifyToken, requireOwnership, favoritesControllerSync);
+router.post("/favorites/add/:userId", verifyToken, requireOwnership, addToFavoritesController);
+router.post("/favorites/remove/:userId", verifyToken, requireOwnership, removeFromFavoritesController);
 
 // historyRoutes
 import { getWatchHistory, historyController } from "./history/historyController.js";
