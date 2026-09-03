@@ -24,26 +24,55 @@ export const recommendationController = async (req, res) => {
         });
 
         const movieMap = new Map();
+        let dominantLanguage = null;
 
         // 1. Primary path: Up to 10 most recent favorites
         const recentFavorites = (user.favorites || []).slice(-10);
 
         if (recentFavorites.length > 0) {
             const fetchPromises = recentFavorites.map(favId =>
-                tmdbClient.get(`/movie/${favId}/recommendations`).then(res => res.data.results || []).catch(err => {
-                    console.error(`Error fetching recommendations for favorite ${favId}:`, err.message);
-                    return [];
-                })
+                Promise.all([
+                    tmdbClient.get(`/movie/${favId}`).then(res => res.data?.original_language).catch(() => null),
+                    tmdbClient.get(`/movie/${favId}/recommendations`).then(res => res.data?.results || []).catch(err => {
+                        console.error(`Error fetching recommendations for favorite ${favId}:`, err.message);
+                        return [];
+                    })
+                ]).then(([lang, recs]) => ({ favId, lang, recs }))
             );
 
-            const resultsArrays = await Promise.all(fetchPromises);
+            const favoriteResults = await Promise.all(fetchPromises);
 
-            resultsArrays.forEach(resultsArray => {
-                resultsArray.forEach((movie, index) => {
+            // Build favorite languages map and count dominant language
+            const favLanguageMap = new Map();
+            const langCounts = {};
+
+            favoriteResults.forEach(({ favId, lang }) => {
+                if (lang) {
+                    favLanguageMap.set(favId, lang);
+                    langCounts[lang] = (langCounts[lang] || 0) + 1;
+                }
+            });
+
+            let maxCount = 0;
+            for (const [lang, count] of Object.entries(langCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    dominantLanguage = lang;
+                }
+            }
+
+            favoriteResults.forEach(({ favId, lang, recs }) => {
+                const maxPop = Math.max(...recs.map(m => m?.popularity || 0), 1);
+
+                recs.forEach((movie, index) => {
                     if (movie && movie.id && !interactedMovieIds.has(movie.id)) {
                         const positionScore = 1 / (index + 1);
-                        const pop = movie.popularity || 1;
-                        const score = positionScore * pop;
+                        const normPop = (movie.popularity || 0) / maxPop;
+                        let score = positionScore * normPop;
+
+                        if (lang && movie.original_language === lang) {
+                            score *= 1.5;
+                        }
 
                         if (movieMap.has(movie.id)) {
                             movieMap.get(movie.id).score += score;
@@ -93,11 +122,17 @@ export const recommendationController = async (req, res) => {
                 const fallbackArrays = await Promise.all(fallbackPromises);
 
                 fallbackArrays.forEach(fallbackArray => {
+                    const maxPop = Math.max(...fallbackArray.map(m => m?.popularity || 0), 1);
+
                     fallbackArray.forEach((movie, index) => {
                         if (movie && movie.id && !interactedMovieIds.has(movie.id)) {
                             const positionScore = 1 / (index + 1);
-                            const pop = movie.popularity || 1;
-                            const score = positionScore * pop;
+                            const normPop = (movie.popularity || 0) / maxPop;
+                            let score = positionScore * normPop;
+
+                            if (dominantLanguage && movie.original_language === dominantLanguage) {
+                                score *= 1.5;
+                            }
 
                             if (movieMap.has(movie.id)) {
                                 movieMap.get(movie.id).score += score;
